@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Compras — Hostec</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+<header class="topbar">
+  <h1>Controle de Compras</h1>
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="pedidos">Pedidos</button>
+    <button class="tab-btn" data-tab="budget">Budget</button>
+    <button class="tab-btn" data-tab="exportar">Exportar</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- DASHBOARD -->
+  <section id="dashboard" class="tab-content active">
+    <div class="controls-row">
+      <label>Ano
+        <select id="dashYear"></select>
+      </label>
+    </div>
+
+    <div class="cards-row" id="summaryCards"></div>
+
+    <div id="alertsPanel" class="alerts-panel"></div>
+
+    <h2>Budget Mensal x Gasto</h2>
+    <div class="table-wrap">
+      <table id="monthlyTable">
+        <thead>
+          <tr><th>Mês</th><th>Budget</th><th>Gasto</th><th>Saldo</th><th>% Utilizado</th><th>% Saldo</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h2>Detalhe Semanal — <span id="weeklyMonthLabel"></span></h2>
+    <div class="controls-row">
+      <label>Mês
+        <select id="weeklyMonthSelect"></select>
+      </label>
+    </div>
+    <div class="table-wrap">
+      <table id="weeklyTable">
+        <thead>
+          <tr><th>Semana</th><th>Período</th><th>Gasto</th><th>Barra</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- PEDIDOS -->
+  <section id="pedidos" class="tab-content">
+    <div class="form-box">
+      <h2 id="formTitle">Novo Pedido</h2>
+      <input type="hidden" id="pedidoId">
+      <div class="grid-form">
+        <label>N° Pedido Interno
+          <input type="text" id="fNumero" placeholder="05.180626-003">
+        </label>
+        <label>OS / Pedido de Compra
+          <input type="text" id="fOS" placeholder="26454 / 26455">
+        </label>
+        <label>Cotação
+          <input type="text" id="fCotacao">
+        </label>
+        <label>Fornecedor
+          <input type="text" id="fFornecedor">
+        </label>
+        <label>Valor Total R$
+          <input type="number" step="0.01" id="fValor">
+        </label>
+        <label>Aprovação
+          <input type="date" id="fAprovacao">
+        </label>
+        <label>Faturamento
+          <input type="date" id="fFaturamento">
+        </label>
+        <label>Status
+          <select id="fStatus">
+            <option>AG. APROVAÇÃO</option>
+            <option>AG. ENTREGA</option>
+            <option>ENTREGUE - AG PAG</option>
+            <option>PAGO</option>
+            <option>CANCELADO</option>
+          </select>
+        </label>
+      </div>
+
+      <h3>Parcelas (vencimentos)</h3>
+      <div id="parcelasWrap"></div>
+      <button type="button" id="addParcela" class="btn-secondary">+ Parcela</button>
+
+      <div class="form-actions">
+        <button type="button" id="savePedido" class="btn-primary">Salvar Pedido</button>
+        <button type="button" id="cancelEdit" class="btn-secondary" style="display:none;">Cancelar Edição</button>
+      </div>
+    </div>
+
+    <h2>Pedidos Cadastrados</h2>
+    <div class="controls-row">
+      <input type="text" id="searchBox" placeholder="Buscar por fornecedor, número, OS...">
+      <select id="filterStatus">
+        <option value="">Todos os status</option>
+        <option>AG. APROVAÇÃO</option>
+        <option>AG. ENTREGA</option>
+        <option>ENTREGUE - AG PAG</option>
+        <option>PAGO</option>
+        <option>CANCELADO</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table id="pedidosTable">
+        <thead>
+          <tr>
+            <th>N° Pedido</th><th>OS</th><th>Fornecedor</th><th>Valor</th>
+            <th>Aprovação</th><th>Faturamento</th><th>Vencimentos</th>
+            <th>Status</th><th>Prazo <span class="hint-inline" title="Calculado automaticamente a partir dos vencimentos">(auto)</span></th><th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- BUDGET -->
+  <section id="budget" class="tab-content">
+    <h2>Budget Mensal</h2>
+    <div class="controls-row">
+      <label>Ano
+        <select id="budgetYear"></select>
+      </label>
+    </div>
+    <div class="table-wrap">
+      <table id="budgetTable">
+        <thead><tr><th>Mês</th><th>Valor Budget (R$)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <button type="button" id="saveBudget" class="btn-primary">Salvar Budget</button>
+  </section>
+
+  <!-- EXPORTAR -->
+  <section id="exportar" class="tab-content">
+    <h2>Exportar Relatório</h2>
+    <p>Gera um arquivo .xlsx com 3 abas: <strong>Resumo</strong> (mês a mês), <strong>Semanal</strong> (por mês/semana) e <strong>Pedidos</strong> (base bruta).</p>
+    <div class="controls-row">
+      <label>Ano do relatório
+        <select id="exportYear"></select>
+      </label>
+    </div>
+    <button type="button" id="exportBtn" class="btn-primary">Gerar Excel</button>
+    <p class="hint">O arquivo é gerado localmente no seu navegador — nada é enviado para servidor nenhum.</p>
+  </section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
