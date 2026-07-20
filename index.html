@@ -15,6 +15,7 @@
     <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
     <button class="tab-btn" data-tab="pedidos">Pedidos</button>
     <button class="tab-btn" data-tab="budget">Budget</button>
+    <button class="tab-btn" data-tab="nuvem">Nuvem <span id="syncDot" class="sync-dot sync-off" title="Sem sincronização"></span></button>
     <button class="tab-btn" data-tab="exportar">Exportar</button>
   </nav>
 </header>
@@ -150,6 +151,51 @@
     <button type="button" id="saveBudget" class="btn-primary">Salvar Budget</button>
   </section>
 
+  <!-- NUVEM -->
+  <section id="nuvem" class="tab-content">
+    <h2>Sincronização entre dispositivos</h2>
+    <p class="hint">Por padrão, os dados ficam só neste navegador. Configurando a nuvem (Firebase, grátis),
+      os mesmos pedidos e budget ficam disponíveis em qualquer computador ou celular em que você fizer login.</p>
+
+    <div id="cloudConfigBox">
+      <h3>1. Configuração do Firebase</h3>
+      <p class="hint">Cole aqui o objeto <code>firebaseConfig</code> gerado no console do Firebase (Configurações do projeto → Seus apps → SDK).</p>
+      <textarea id="firebaseConfigInput" rows="6" placeholder='{"apiKey": "...", "authDomain": "...", "projectId": "...", ...}'></textarea>
+      <div class="form-actions">
+        <button type="button" id="saveFirebaseConfig" class="btn-primary">Salvar configuração</button>
+        <button type="button" id="clearFirebaseConfig" class="btn-danger" style="display:none;">Remover configuração</button>
+      </div>
+      <p id="cloudConfigMsg" class="hint"></p>
+    </div>
+
+    <div id="cloudAuthBox" style="display:none;">
+      <h3>2. Login</h3>
+      <div id="loggedOutBox">
+        <div class="grid-form">
+          <label>E-mail
+            <input type="email" id="authEmail">
+          </label>
+          <label>Senha
+            <input type="password" id="authPassword">
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="btnLogin" class="btn-primary">Entrar</button>
+          <button type="button" id="btnSignup" class="btn-secondary">Criar conta (primeira vez)</button>
+        </div>
+        <p class="hint">Use sempre o mesmo e-mail e senha em todos os dispositivos que você quiser sincronizar.</p>
+      </div>
+      <div id="loggedInBox" style="display:none;">
+        <p>Conectado como <strong id="authUserEmail"></strong> — <span id="syncStatusText">sincronizado</span></p>
+        <div class="form-actions">
+          <button type="button" id="btnSyncNow" class="btn-secondary">Sincronizar agora</button>
+          <button type="button" id="btnLogout" class="btn-danger">Sair</button>
+        </div>
+      </div>
+      <p id="cloudAuthMsg" class="hint"></p>
+    </div>
+  </section>
+
   <!-- EXPORTAR -->
   <section id="exportar" class="tab-content">
     <h2>Exportar Relatório</h2>
@@ -166,6 +212,10 @@
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="cloud-sync.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

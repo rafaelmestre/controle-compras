@@ -342,13 +342,20 @@ function savePedidoHandler() {
     alert("Informe ao menos o fornecedor.");
     return;
   }
+  data.updatedAt = Date.now();
+  let saved;
   if (state.editingId) {
     const idx = state.pedidos.findIndex(p => p.id === state.editingId);
-    if (idx > -1) state.pedidos[idx] = { ...state.pedidos[idx], ...data };
+    if (idx > -1) {
+      state.pedidos[idx] = { ...state.pedidos[idx], ...data };
+      saved = state.pedidos[idx];
+    }
   } else {
-    state.pedidos.push({ id: uid(), ...data });
+    saved = { id: uid(), ...data };
+    state.pedidos.push(saved);
   }
   savePedidos();
+  if (saved) CloudSync.pushPedido(saved);
   clearForm();
   renderAll();
 }
@@ -378,6 +385,7 @@ window.deletePedido = function (id) {
   if (!confirm("Excluir este pedido? Essa ação não pode ser desfeita.")) return;
   state.pedidos = state.pedidos.filter(p => p.id !== id);
   savePedidos();
+  CloudSync.deletePedidoRemote(id);
   renderAll();
 };
 
@@ -400,7 +408,9 @@ function saveBudgetHandler() {
   document.querySelectorAll(".budgetInput").forEach(inp => {
     state.budget[year][inp.dataset.mes] = parseFloat(inp.value) || 0;
   });
+  state.budget[year].updatedAt = Date.now();
   saveBudgetState();
+  CloudSync.pushBudgetYear(year, state.budget[year]);
   renderAll();
   alert("Budget salvo.");
 }
@@ -482,6 +492,146 @@ function setupTabs() {
   });
 }
 
+// ---------- Nuvem (Firebase) ----------
+function mergeById(localList, remoteList) {
+  const map = {};
+  localList.forEach(p => { map[p.id] = p; });
+  remoteList.forEach(rp => {
+    const lp = map[rp.id];
+    if (!lp || (rp.updatedAt || 0) > (lp.updatedAt || 0)) {
+      map[rp.id] = rp;
+    }
+  });
+  return Object.values(map);
+}
+
+function setSyncDot(cls, title) {
+  const dot = document.getElementById("syncDot");
+  dot.className = "sync-dot " + cls;
+  dot.title = title;
+}
+
+async function syncFromCloud() {
+  const user = CloudSync.getCurrentUser();
+  if (!user) return;
+  setSyncDot("sync-syncing", "Sincronizando...");
+  document.getElementById("syncStatusText").textContent = "sincronizando...";
+  try {
+    const [remotePedidos, remoteBudget] = await Promise.all([
+      CloudSync.fetchAllPedidos(),
+      CloudSync.fetchAllBudget()
+    ]);
+
+    state.pedidos = mergeById(state.pedidos, remotePedidos);
+    savePedidos();
+    state.pedidos.forEach(p => CloudSync.pushPedido(p));
+
+    Object.keys(remoteBudget).forEach(year => {
+      const remoteYearObj = remoteBudget[year] || {};
+      const localYearObj = state.budget[year];
+      if (!localYearObj || (remoteYearObj.updatedAt || 0) > (localYearObj.updatedAt || 0)) {
+        state.budget[year] = remoteYearObj;
+      }
+    });
+    saveBudgetState();
+    Object.keys(state.budget).forEach(year => CloudSync.pushBudgetYear(year, state.budget[year]));
+
+    renderAll();
+    setSyncDot("sync-on", "Sincronizado");
+    document.getElementById("syncStatusText").textContent = "sincronizado";
+  } catch (e) {
+    console.error("Erro ao sincronizar:", e);
+    setSyncDot("sync-error", "Erro ao sincronizar — verifique sua conexão");
+    document.getElementById("syncStatusText").textContent = "erro ao sincronizar";
+  }
+}
+
+function updateAuthUI(user) {
+  const configBox = document.getElementById("cloudConfigBox");
+  const authBox = document.getElementById("cloudAuthBox");
+  const loggedOut = document.getElementById("loggedOutBox");
+  const loggedIn = document.getElementById("loggedInBox");
+  const clearBtn = document.getElementById("clearFirebaseConfig");
+
+  if (CloudSync.isConfigured()) {
+    authBox.style.display = "block";
+    clearBtn.style.display = "inline-block";
+  } else {
+    authBox.style.display = "none";
+    clearBtn.style.display = "none";
+    setSyncDot("sync-off", "Sem sincronização");
+    return;
+  }
+
+  if (user) {
+    loggedOut.style.display = "none";
+    loggedIn.style.display = "block";
+    document.getElementById("authUserEmail").textContent = user.email;
+    setSyncDot("sync-on", "Sincronizado");
+  } else {
+    loggedOut.style.display = "block";
+    loggedIn.style.display = "none";
+    setSyncDot("sync-off", "Sem sincronização (faça login)");
+  }
+}
+
+function setupCloudUI() {
+  const cfg = CloudSync.getSavedConfig();
+  if (cfg) {
+    document.getElementById("firebaseConfigInput").value = JSON.stringify(cfg, null, 2);
+  }
+
+  const configured = CloudSync.init(
+    (user) => { updateAuthUI(user); if (user) syncFromCloud(); },
+    () => { syncFromCloud(); }
+  );
+  updateAuthUI(configured ? CloudSync.getCurrentUser() : null);
+
+  document.getElementById("saveFirebaseConfig").addEventListener("click", () => {
+    const raw = document.getElementById("firebaseConfigInput").value.trim();
+    const msg = document.getElementById("cloudConfigMsg");
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed.apiKey || !parsed.projectId) throw new Error("Config incompleta.");
+      CloudSync.saveConfig(parsed);
+      msg.textContent = "Configuração salva. Recarregando...";
+      setTimeout(() => location.reload(), 800);
+    } catch (e) {
+      msg.textContent = "JSON inválido. Cole exatamente o objeto firebaseConfig do console do Firebase.";
+    }
+  });
+
+  document.getElementById("clearFirebaseConfig").addEventListener("click", () => {
+    if (!confirm("Remover a configuração de nuvem? A sincronização será desativada neste navegador.")) return;
+    CloudSync.clearConfig();
+    location.reload();
+  });
+
+  document.getElementById("btnLogin").addEventListener("click", () => {
+    const email = document.getElementById("authEmail").value.trim();
+    const pass = document.getElementById("authPassword").value;
+    const msg = document.getElementById("cloudAuthMsg");
+    CloudSync.login(email, pass)
+      .then(() => { msg.textContent = ""; })
+      .catch(e => { msg.textContent = "Erro ao entrar: " + e.message; });
+  });
+
+  document.getElementById("btnSignup").addEventListener("click", () => {
+    const email = document.getElementById("authEmail").value.trim();
+    const pass = document.getElementById("authPassword").value;
+    const msg = document.getElementById("cloudAuthMsg");
+    CloudSync.signup(email, pass)
+      .then(() => { msg.textContent = ""; })
+      .catch(e => { msg.textContent = "Erro ao criar conta: " + e.message; });
+  });
+
+  document.getElementById("btnLogout").addEventListener("click", () => {
+    CloudSync.logout();
+  });
+
+  document.getElementById("btnSyncNow").addEventListener("click", syncFromCloud);
+}
+
 // ---------- Init ----------
 document.addEventListener("DOMContentLoaded", () => {
   loadState();
@@ -499,6 +649,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("budgetYear").addEventListener("change", renderBudgetTable);
   document.getElementById("saveBudget").addEventListener("click", saveBudgetHandler);
   document.getElementById("exportBtn").addEventListener("click", exportExcel);
+  setupCloudUI();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
