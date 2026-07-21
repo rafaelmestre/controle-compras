@@ -588,16 +588,35 @@ function setupCloudUI() {
   updateAuthUI(configured ? CloudSync.getCurrentUser() : null);
 
   document.getElementById("saveFirebaseConfig").addEventListener("click", () => {
-    const raw = document.getElementById("firebaseConfigInput").value.trim();
+    let raw = document.getElementById("firebaseConfigInput").value.trim();
     const msg = document.getElementById("cloudConfigMsg");
     try {
-      const parsed = JSON.parse(raw);
-      if (!parsed.apiKey || !parsed.projectId) throw new Error("Config incompleta.");
+      // Extrai só o objeto { ... } que vem depois de "firebaseConfig =",
+      // ignorando imports, comentários e a chamada initializeApp que o Firebase
+      // costuma incluir junto no bloco de código.
+      const marker = raw.search(/firebaseConfig\s*=\s*{/);
+      if (marker === -1) throw new Error("marcador não encontrado");
+      const braceStart = raw.indexOf("{", marker);
+      let depth = 0, i = braceStart, braceEnd = -1;
+      for (; i < raw.length; i++) {
+        if (raw[i] === "{") depth++;
+        else if (raw[i] === "}") { depth--; if (depth === 0) { braceEnd = i; break; } }
+      }
+      if (braceEnd === -1) throw new Error("chaves não fecharam");
+      const objText = raw.slice(braceStart, braceEnd + 1);
+
+      let parsed;
+      try {
+        parsed = JSON.parse(objText);
+      } catch (jsonErr) {
+        parsed = new Function("return (" + objText + ");")();
+      }
+      if (!parsed || !parsed.apiKey || !parsed.projectId) throw new Error("Config incompleta.");
       CloudSync.saveConfig(parsed);
       msg.textContent = "Configuração salva. Recarregando...";
       setTimeout(() => location.reload(), 800);
     } catch (e) {
-      msg.textContent = "JSON inválido. Cole exatamente o objeto firebaseConfig do console do Firebase.";
+      msg.textContent = "Não consegui interpretar o texto colado. Cole o bloco firebaseConfig do console do Firebase (pode incluir o resto do código junto).";
     }
   });
 
